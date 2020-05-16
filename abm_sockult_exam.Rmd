@@ -856,6 +856,9 @@ write.csv(all_majority, "all_majority.csv")
 all_majority <- read_csv("all_majority.csv")
 all_majority$X1 <- NULL
 
+
+
+
 ```
 
 
@@ -896,7 +899,7 @@ H1 <- ggplot(all_majority, aes(frequency_interethnic_contact, col_other)) +
   coord_cartesian(xlim = c(0,150), ylim = c(0, 1)) +
   labs(x="Frequency of Interethnic Contact", y="Propensity to Collaborate") + 
   ggtitle("Propensity to Collaborate as Frequency\n of Interethnic Contact Increases") + 
-  theme(plot.title = element_text(size = 9), axis.title = element_text(size = 9))
+  theme(plot.title = element_text(size = 10), axis.title = element_text(size = 10))
 H1
 
 ggsave("H1.png")
@@ -1063,7 +1066,7 @@ H3<- ggplot(majority_count, aes(x = prop_minority, y = n, colour=prejudice_level
   labs(x="Proportion of Miniroties", y="Number of Agents") + 
   ggtitle("Number of People with Different \nLevels of Prejudice in Communities with\n Variying Degrees of Diversity(Last Round)") + 
   scale_colour_discrete("Prejudice Level") +
-  theme(plot.title = element_text(size = 8), axis.title = element_text(size = 8), legend.title = element_text(size=8))
+  theme(plot.title = element_text(size = 10), axis.title = element_text(size = 10), legend.title = element_text(size=10))
 
 H3
 

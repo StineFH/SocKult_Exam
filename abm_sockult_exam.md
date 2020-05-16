@@ -895,7 +895,7 @@ H1 <- ggplot(all_majority, aes(frequency_interethnic_contact, col_other)) +
   coord_cartesian(xlim = c(0,150), ylim = c(0, 1)) +
   labs(x="Frequency of Interethnic Contact", y="Propensity to Collaborate") + 
   ggtitle("Propensity to Collaborate as Frequency\n of Interethnic Contact Increases") + 
-  theme(plot.title = element_text(size = 9), axis.title = element_text(size = 9))
+  theme(plot.title = element_text(size = 10), axis.title = element_text(size = 10))
 H1
 ```
 
@@ -931,7 +931,7 @@ h1 <- lmer(col_other ~ frequency_interethnic_contact + (1|id_2), all_majority)
 summary(h1)$coefficients[2,1]
 ```
 
-    ## [1] -0.000132001
+    ## [1] -0.0001267313
 
 ``` r
 summary(h1)
@@ -942,22 +942,22 @@ summary(h1)
     ## Formula: col_other ~ frequency_interethnic_contact + (1 | id_2)
     ##    Data: all_majority
     ## 
-    ## REML criterion at convergence: -102170.5
+    ## REML criterion at convergence: -99900.9
     ## 
     ## Scaled residuals: 
     ##     Min      1Q  Median      3Q     Max 
-    ## -6.0202 -0.0983  0.0307  0.3215  5.3839 
+    ## -6.0517 -0.0943  0.0353  0.3132  5.2781 
     ## 
     ## Random effects:
     ##  Groups   Name        Variance Std.Dev.
-    ##  id_2     (Intercept) 0.01691  0.1301  
-    ##  Residual             0.01347  0.1161  
+    ##  id_2     (Intercept) 0.01471  0.1213  
+    ##  Residual             0.01393  0.1180  
     ## Number of obs: 71250, groups:  id_2, 472
     ## 
     ## Fixed effects:
     ##                                 Estimate Std. Error         df t value Pr(>|t|)
-    ## (Intercept)                    4.811e-01  6.037e-03  4.817e+02  79.701  < 2e-16
-    ## frequency_interethnic_contact -1.320e-04  1.840e-05  7.119e+04  -7.173 7.44e-13
+    ## (Intercept)                    4.867e-01  5.638e-03  4.837e+02  86.330  < 2e-16
+    ## frequency_interethnic_contact -1.267e-04  1.870e-05  7.123e+04  -6.776 1.25e-11
     ##                                  
     ## (Intercept)                   ***
     ## frequency_interethnic_contact ***
@@ -966,7 +966,7 @@ summary(h1)
     ## 
     ## Correlation of Fixed Effects:
     ##             (Intr)
-    ## frqncy_ntr_ -0.107
+    ## frqncy_ntr_ -0.116
 
 H1: Descriptive Statistics:
 
@@ -986,9 +986,9 @@ H1_desc
     ## # A tibble: 3 x 5
     ##   `Level of Interethnic contact` `Mean POC`    SD `Minimum POC` `Maximum POC`
     ##   <chr>                               <dbl> <dbl>         <dbl>         <dbl>
-    ## 1 Low                                 0.486 0.161             0             1
-    ## 2 Medium                              0.458 0.195             0             1
-    ## 3 High                                0.425 0.233             0             1
+    ## 1 Low                                 0.492 0.155             0             1
+    ## 2 Medium                              0.463 0.194             0             1
+    ## 3 High                                0.434 0.216             0             1
 
 ``` r
 # Save as png file
@@ -1106,21 +1106,21 @@ H2_desc
     ## # Groups:   Proportion of Minority [5]
     ##    `Proportion of ~ `Levels of nega~ `Mean POC`    SD `Minimum POC`
     ##               <dbl> <fct>                 <dbl> <dbl>         <dbl>
-    ##  1             0.05 Low                   0.412 0.138         0.189
-    ##  2             0.05 Medium                0.395 0.127         0.078
-    ##  3             0.05 High                  0.37  0.117         0.079
-    ##  4             0.25 Low                   0.429 0.1           0.279
-    ##  5             0.25 Medium                0.387 0.139         0    
-    ##  6             0.25 High                  0.379 0.141         0.04 
-    ##  7             0.45 Low                   0.475 0.113         0.251
-    ##  8             0.45 Medium                0.374 0.153         0    
-    ##  9             0.45 High                  0.368 0.141         0    
-    ## 10             0.65 Low                   0.483 0.164         0.162
-    ## 11             0.65 Medium                0.357 0.175         0    
-    ## 12             0.65 High                  0.309 0.159         0    
-    ## 13             0.85 Low                   0.514 0.2           0.079
-    ## 14             0.85 Medium                0.315 0.215         0    
-    ## 15             0.85 High                  0.267 0.189         0    
+    ##  1             0.05 Low                   0.381 0.088         0.279
+    ##  2             0.05 Medium                0.371 0.138         0.079
+    ##  3             0.05 High                  0.38  0.112         0.078
+    ##  4             0.25 Low                   0.394 0.144         0.168
+    ##  5             0.25 Medium                0.398 0.135         0    
+    ##  6             0.25 High                  0.358 0.126         0    
+    ##  7             0.45 Low                   0.41  0.125         0.179
+    ##  8             0.45 Medium                0.378 0.151         0    
+    ##  9             0.45 High                  0.381 0.137         0    
+    ## 10             0.65 Low                   0.457 0.179         0.14 
+    ## 11             0.65 Medium                0.369 0.167         0    
+    ## 12             0.65 High                  0.348 0.152         0    
+    ## 13             0.85 Low                   0.596 0.204         0.179
+    ## 14             0.85 Medium                0.324 0.212         0    
+    ## 15             0.85 High                  0.223 0.194         0    
     ## # ... with 1 more variable: `Maximum POC` <dbl>
 
 ``` r
@@ -1186,7 +1186,7 @@ H3<- ggplot(majority_count, aes(x = prop_minority, y = n, colour=prejudice_level
   labs(x="Proportion of Miniroties", y="Number of Agents") + 
   ggtitle("Number of People with Different \nLevels of Prejudice in Communities with\n Variying Degrees of Diversity(Last Round)") + 
   scale_colour_discrete("Prejudice Level") +
-  theme(plot.title = element_text(size = 8), axis.title = element_text(size = 8), legend.title = element_text(size=8))
+  theme(plot.title = element_text(size = 10), axis.title = element_text(size = 10), legend.title = element_text(size=10))
 
 H3
 ```
