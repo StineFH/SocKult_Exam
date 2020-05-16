@@ -1,0 +1,1094 @@
+---
+title: "abm_sockult_exam"
+author: "Stine Fabech Hansson"
+date: "25/4/2020"
+output: 
+  md_document:
+    variant: markdown_github
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## ABM Description ## 
+Topic: the effect of contact-valence on prejudice in interethnic contact in communities with  different levels of diversity
+	
+	Question: Do contact-valence in interethnic contact have different effects on prejudice towards ethnic minorities depending on the level of diversity in a community?
+	
+Description of ABM: 
+	1. 100 People in a community interact via. The Prisoner's Dilemma. 
+	2. Each is either a member of an ethnic minority or the ethnic majority. They have a
+	baseline probability of collaborating with people of the other ethnicity. This baseline has a normal 
+	distribution to create some variety.  
+	3. In each round each agent is randomly paired with who they interact with. 
+  4. When of majority and minority plays: They  collaborate or deflect with the probability of them 
+  collaborating with a person of the given ethnicity. 
+    a. Positive interaction for agent 1 when agent 1 / agent 2 plays: 
+          - Collaborate / collaborate 
+          - Deflect / Collaborate 
+    b. Negative interaction for agent 1 when agent 1 / agent 2 plays: 
+          - Deflect / Deflect 
+          - Collaborate / Deflect 
+  5. Updating Rule: 
+		a. If agent has positive interethnic contact their probability of collaborating with the other 
+		ethnicity is increased. If their frequency of positive interethnic contact increases to 
+		"frequent" (as defined in Laurence & Bentley 2017) then the increase is bigger.    
+		b. If agent has negative interethnic contact their probability of collaborating with the other 
+		ethnicity is decreased. If their frequency of negative interethnic contact increases to 
+		"frequent" (as defined in Laurence & Bentley 2017) then the decrease is bigger.
+  6. They do this 150 amount of rounds 
+
+Packages: 
+```{r}
+library(pacman)
+p_load(tidyverse)
+p_load(ggplot2)
+p_load(lme4)
+p_load(gridExtra) # Used for saving Descriptive statistic tables
+
+setwd("C:/Users/stine/OneDrive/Cognitive Science/4th_Semester/Social_and_cultural_dynamics/Exam/SocKult_Exam")
+
+
+```
+    
+Update function: 
+5. Updating Rule: 
+	a.If agent has positive interethnic contact their probability of collaborating with the other
+		ethnicity is increased. If their frequency of positive interethnic contact increases to 
+		"frequent" (as defined in Laurence & Bentley 2017) then the increase is bigger.    
+  b.If agent has negative interethnic contact their probability of collaborating with the other 
+    ethnicity is decreased. If their frequency of negative interethnic contact increases 
+    "frequent" (as defined in Laurence & Bentley 2017) then the decrease is bigger.
+
+Update function agent 1 
+```{r}
+
+update_agent_1 <- function(df, round, pair, pair_names){
+  # infrequent positive contact 
+  if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]]<=13.97 &
+      df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "def_col" &
+      round == 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]+0.0638
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=1
+    }
+
+    # infrequent positive contact  round > 1
+  } else if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]]<=13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "def_col" &
+             round>1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[1]]+0.0638
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=1
+    }
+    
+    # Frequent positive contact round = 1
+  } else if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "def_col" &
+             round == 1) { 
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]+0.0829
+    # Make sure col_other does not get above 100
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=1
+    }
+    
+    # Frequent positive contact round > 1
+  } else if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "def_col" & 
+             round > 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[1]]+0.0829
+    # Make sure col_other does not get below 0 
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=1
+    }
+  }
+ 
+  ###### infrequent LESS positive contact #####
+  if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]]<=13.97 &
+      df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "col_col" &
+      round == 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]+0.0538
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=1
+    }
+
+    # infrequent positive contact  round > 1
+  } else if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]]<=13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "col_col" &
+             round>1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[1]]+0.0538
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=1
+    }
+    
+    # Frequent positive contact round = 1
+  } else if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "col_col" &
+             round == 1) { 
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]+0.0729
+    # Make sure col_other does not get above 100
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=1
+    }
+    
+    # Frequent positive contact round > 1
+  } else if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "col_col" & 
+             round > 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[1]]+0.0729
+    # Make sure col_other does not get below 0 
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=1
+    }
+  }
+   
+  # Infrequent negative contact round = 1
+  if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]]<=13.97 &
+      df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "def_def" & 
+      round == 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]-0.0587
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=0
+    }
+  
+    # Infrequent negative contact round = 1
+  } else if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]]<=13.97 &
+      df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "def_def" & 
+      round > 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[1]]-0.0587
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=0
+    }
+    
+    # Frequent negative contact round = 1
+  } else if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "def_def" &
+             round == 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]-0.1109
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=0
+    }
+    
+    # Frequent negative contact round = 1
+  } else if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "def_def" &
+             round > 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[1]]-0.1109
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=0
+    }
+  }
+  
+  ###### Infrequent MORE negative contact round = 1 #####
+  if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]]<=13.97 &
+      df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "col_def" & 
+      round == 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]-0.0687
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=0
+    }
+  
+    # Infrequent negative contact round = 1
+  } else if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]]<=13.97 &
+      df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "col_def" & 
+      round > 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[1]]-0.0687
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=0
+    }
+    
+    # Frequent negative contact round = 1
+  } else if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "col_def" &
+             round == 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]-0.1209
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=0
+    }
+    
+    # Frequent negative contact round = 1
+  } else if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[1]] == "col_def" &
+             round > 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[1]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[1]]-0.1209
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[1]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[1]]=0
+    }
+  }
+  
+  
+return(df$col_other[df$rounds==round & df$id == pair_names$ID[1]])
+}
+
+
+```
+
+Update function agent 2
+```{r}
+
+############## Agent 2 ###############
+update_agent_2 <- function(df, round, pair, pair_names){
+  # infrequent positive contact 
+  if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]]<=13.97 &
+      df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "def_col" &
+      round == 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]+0.0638
+    # Make sure col_other does not get above 100 
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=1
+    }
+    
+    # infrequent positive contact  round > 1
+  } else if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]]<=13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "def_col" &
+             round>1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[2]]+0.0638
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=1
+    }
+    
+    # Frequent positive contact round = 1
+  } else if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "def_col" &
+             round == 1) { 
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]+0.0829
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=1
+    }
+    
+    # Frequent positive contact round > 1
+  } else if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "def_col" & 
+             round > 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[2]]+0.0829
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=1
+    }
+  }
+  
+  ####### infrequent LESS positive contact ########
+  if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]]<=13.97 &
+      df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "col_col" &
+      round == 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]+0.0538
+    # Make sure col_other does not get above 100 
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=1
+    }
+    
+    # infrequent LESS positive contact  round > 1
+  } else if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]]<=13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "col_col" &
+             round>1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[2]]+0.0538
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=1
+    }
+    
+    # Frequent positive contact round = 1
+  } else if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "col_col" &
+             round == 1) { 
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]+0.0729
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=1
+    }
+    
+    # Frequent positive contact round > 1
+  } else if (df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "col_col" & 
+             round > 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[2]]+0.0729
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]>1){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=1
+    }
+  }
+  
+  # Infrequent negative contact round = 1
+  if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]]<=13.97 &
+      df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "def_def" & 
+      round == 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]-0.0587
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=0
+    }
+  
+    # Infrequent negative contact round > 1
+  } else if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]]<=13.97 &
+      df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "def_def" & 
+      round > 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[2]]-0.0587
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=0
+    }
+    
+    # Frequent negative contact round = 1
+  } else if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "def_def" &
+             round == 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]-0.1109
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=0
+    }
+    
+    # Frequent negative contact round > 1
+  } else if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "def_def" &
+             round > 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[2]]-0.1109
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=0
+    }
+  }
+  
+    # Infrequent MORE negative contact round = 1
+  if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]]<=13.97 &
+      df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "col_def" & 
+      round == 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]-0.0687
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=0
+    }
+  
+    # Infrequent MORE negative contact round > 1
+  } else if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]]<=13.97 &
+      df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "col_def" & 
+      round > 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[2]]-0.0687
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=0
+    }
+    
+    # Frequent negative contact round = 1
+  } else if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "col_def" &
+             round == 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]-0.1209
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=0
+    }
+    
+    # Frequent negative contact round = 1
+  } else if (df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]]>13.97 &
+             df$contact_valence[df$round==round & df$id == pair_names$ID[2]] == "col_def" &
+             round > 1){
+    df$col_other[df$rounds==round & df$id == pair_names$ID[2]] = 
+      df$col_other[df$rounds==round-1 & df$id == pair_names$ID[2]]-0.1209
+    
+    if (df$col_other[df$rounds==round & df$id == pair_names$ID[2]]<0){
+      df$col_other[df$rounds==round & df$id == pair_names$ID[2]]=0
+    }
+  }
+  
+return(df$col_other[df$rounds==round & df$id == pair_names$ID[2]])
+}
+```
+
+
+Prisoner's Dilemma: 
+3. In each round each agent is randomly paired with who they interact with. 
+4. When of majority and minority plays: They  collaborate or deflect with the probability of them 
+collaborating with a person of the given ethnicity. 
+    a. Positive interaction for agent 1 when agent 1 / agent 2 plays: 
+          - Collaborate / collaborate 
+          - Deflect / Collaborate 
+    b. Negative interaction for agent 1 when agent 1 / agent 2 plays: 
+          - Deflect / Deflect 
+          - Collaborate / Deflect 
+```{r}
+prisoner_dilemma <- function(df, rounds){
+  for (round in 1:rounds){
+    pairs <- as.data.frame(split(sample(unique(df$id)),rep(1:(n/2), each = 2))) #randomly pair up agents to play 
+    pairs <- gather(pairs, pair_name, ID, X1:X50) # Any way to change X5??? 
+    
+    for (pair in unique(pairs$pair_name)){
+      pair_names <- pairs[pairs$pair_name==pair,]
+      
+      # What to do when they are of opposite ethnicities 
+      if (df$ethnicity[df$id==pair_names$ID[1]][1] != df$ethnicity[df$id==pair_names$ID[2]][1]){ 
+        
+        # Each agent 1 and 2 collaborate/deflect with probability of prop_other
+        # Agent 1
+        prop_own_1 <- rep( c("collaborate", "deflect"), 
+                           100*c(df[pair_names$ID[1],5],1 - df[pair_names$ID[1],5]))
+        df$p_dilemma_action[df$round==round & df$id == pair_names$ID[1]] <- sample(prop_own_1, 1)
+        # Agent 2
+        prop_own_2 <- rep( c("collaborate", "deflect"), 
+                           100*c(df[pair_names$ID[2],5],1 - df[pair_names$ID[2],5]))
+        df$p_dilemma_action[df$round==round & df$id == pair_names$ID[2]] <- sample(prop_own_2, 1)
+        
+        # Deciding the valence of the contact 
+        # Positive contact
+        if (df$p_dilemma_action[df$round==round & df$id == pair_names$ID[1]]== "collaborate" & 
+            df$p_dilemma_action[df$round==round & df$id == pair_names$ID[2]]== "collaborate"){
+          df$contact_valence[df$round==round & df$id == pair_names$ID[1]] <- "col_col"
+          df$contact_valence[df$round==round & df$id == pair_names$ID[2]] <- "col_col"
+          
+          # Positive agent 1 negative agent 2 
+            }else if(df$p_dilemma_action[df$round==round & df$id == pair_names$ID[1]]=="deflect" & 
+            df$p_dilemma_action[df$round==round & df$id == pair_names$ID[2]]== "collaborate"){
+              df$contact_valence[df$round==round & df$id == pair_names$ID[1]] <- "def_col"
+              df$contact_valence[df$round==round & df$id == pair_names$ID[2]] <- "col_def"
+              
+          # Negative agent 1 positive agent 2    
+            }else if(df$p_dilemma_action[df$round==round & df$id == 
+                                         pair_names$ID[1]]=="collaborate" & 
+            df$p_dilemma_action[df$round==round & df$id == pair_names$ID[2]]== "deflect"){
+              df$contact_valence[df$round==round & df$id == pair_names$ID[1]] <- "col_def"
+              df$contact_valence[df$round==round & df$id == pair_names$ID[2]] <- "def_col"
+          # Negative agent 1 negative agent 2
+            }else if(df$p_dilemma_action[df$round==round & df$id == 
+                                         pair_names$ID[1]]=="deflect" & 
+            df$p_dilemma_action[df$round==round & df$id == pair_names$ID[2]]== "deflect"){
+              df$contact_valence[df$round==round & df$id == pair_names$ID[1]] <- "def_def"
+              df$contact_valence[df$round==round & df$id == pair_names$ID[2]] <- "def_def"
+            }
+        
+        #################### Agent 1 ##########################
+        # Column counting interethnic contact 
+        if (round == 1){
+          df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[1]] =  1
+        } else {
+          df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[1]] = 
+          df$frequency_interethnic_contact[df$rounds==round-1 & df$id == pair_names$ID[1]] + 1
+        }
+        # Update percentage of positive interethnic contact round == 1
+        if (df$contact_valence[df$round == round & df$id == pair_names$ID[1]]=="col_col" &
+            round == 1 | df$contact_valence[df$round == round & df$id==pair_names$ID[1]]=="def_col"
+            & round == 1){
+          df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]] = 100
+        
+          # Update frequency of negative interethnic contact round == 1 
+        } else if (df$contact_valence[df$round == round & df$id == pair_names$ID[1]]=="col_def" &
+            round == 1 | df$contact_valence[df$round == round & df$id==pair_names$ID[1]]=="def_def"
+            & round == 1){
+          df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]] = 1
+          # update percentage of negative interethnic contact 
+          df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]] =
+            (df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]]/
+               df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[1]])*100
+          # update percentage of positive interethnic contact
+          df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]] = 
+            ((df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[1]]-
+                df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]])/
+            df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[1]])*100
+          
+          # Update frequency of negative interethnic contact for round > 1
+        } else if (df$contact_valence[df$round == round & df$id == pair_names$ID[1]]=="col_def" &
+            round > 1 | df$contact_valence[df$round == round & df$id ==pair_names$ID[1]]=="def_def"
+            & round > 1) {
+          df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]] = 
+            df$frequency_neg_interethnic[df$rounds==round-1 & df$id == pair_names$ID[1]]+1
+          # update percentage of negative interethnic contact 
+          df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]] =
+            (df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]]/
+               df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[1]])*100
+          # update percentage of positive interethnic contact
+          df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]] = 
+            ((df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[1]]-
+                df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]])/
+            df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[1]])*100
+        }
+        
+        # Update frequency of positive interethnic contact for round > 1
+        if (df$contact_valence[df$round==round & df$id == pair_names$ID[1]]=="col_col" & round>1 |
+            df$contact_valence[df$round==round & df$id == pair_names$ID[1]]=="def_col" & round>1 ){
+          df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]] = 
+            df$frequency_neg_interethnic[df$rounds==round-1 & df$id == pair_names$ID[1]]
+          # update percentage of negative interethnic contact 
+          df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]] =
+            (df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]]/
+               df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[1]])*100
+          # update percentage of positive interethnic contact
+          df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]] = 
+            ((df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[1]]-
+                df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]])/
+            df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[1]])*100
+        }
+        
+        # update probability of collaborating with people of another ethnicity
+        df$col_other[df$rounds==round & df$id == pair_names$ID[1]] <-
+          update_agent_1(df, round, pair, pair_names)
+        
+        #### AGENT 2 #####
+        # Column counting amount of interethnic contact 
+        if (round == 1){
+          df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[2]] =  1
+        } else {
+          df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[2]] = 
+          df$frequency_interethnic_contact[df$rounds==round-1 & df$id == pair_names$ID[2]] + 1
+        }
+        
+        # Update percentage of positive interethnic contact for round = 1
+       if (df$contact_valence[df$round == round & df$id == pair_names$ID[2]]=="col_col" &
+            round == 1 | df$contact_valence[df$round == round & df$id==pair_names$ID[2]]=="def_col"
+            & round == 1){
+         df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]] = 100
+        
+         # Update frequency of negative interethnic contact for round = 1
+        } else if (df$contact_valence[df$round==round & df$id == pair_names$ID[2]]=="col_def" &
+                   round==1 | df$contact_valence[df$round==round & df$id ==
+                                                 pair_names$ID[2]]=="def_def" & round==1){
+          df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]] = 1
+          # update percentage of negative interethnic contact 
+          df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]] =
+            (df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]]/
+               df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[2]])*100
+          # update percentage of positive interethnic contact
+          df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]] = 
+            ((df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[2]]-
+                df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]])/
+            df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[2]])*100
+          
+        # Update frequency of negative interethnic contact for round > 1
+       } else if (df$contact_valence[df$round==round & df$id == pair_names$ID[2]]=="col_def" &
+                  round>1 |
+           df$contact_valence[df$round==round & df$id == pair_names$ID[2]]=="def_def" & round>1) {
+         df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]] = 
+            df$frequency_neg_interethnic[df$rounds==round-1 & df$id == pair_names$ID[2]]+1
+         # update percentage of negative interethnic contact 
+          df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]] =
+            (df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]]/
+               df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[2]])*100
+          # update percentage of positive interethnic contact
+          df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]] = 
+            ((df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[2]]-
+                df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]])/
+            df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[2]])*100
+       }
+        
+        # Update frequency of positive interethnic contact for round > 1
+        if (df$contact_valence[df$round==round & df$id == pair_names$ID[2]]=="col_col" & round>1 |
+            df$contact_valence[df$round==round & df$id == pair_names$ID[2]]=="def_col" & round>1){
+          df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]] = 
+            df$frequency_neg_interethnic[df$rounds==round-1 & df$id == pair_names$ID[2]]
+          # update percentage of negative interethnic contact 
+          df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]] =
+            (df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]]/
+               df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[2]])*100
+          # update percentage of positive interethnic contact
+          df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]] = 
+            ((df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[2]]-
+                df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]])/
+            df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[2]])*100
+        }
+        # update probability of collaborating with people of another ethnicity
+        df$col_other[df$rounds==round & df$id == pair_names$ID[2]] <-
+          update_agent_2(df, round, pair, pair_names) 
+        
+      } else { # if people are of same ethnicity 
+        
+        #### agent 1 #####
+        # update frequency of interethnic contact column
+        if (round == 1){
+          df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[1]] =  0
+        } else {
+          df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[1]] = 
+          df$frequency_interethnic_contact[df$rounds==round-1 & df$id == pair_names$ID[1]]
+        }
+        
+        # update frequency of negative interethnic contact column 
+        if (round == 1){
+          df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]] = 0
+          # update percentage of negative interethnic contact 
+          df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]] = 0
+          # update percentage of positive interethnic contact 
+          df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]] = 0
+          
+        # Update frequency of negative interethnic contact for round > 1
+       } else if (round > 1) {
+         df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]] = 
+            df$frequency_neg_interethnic[df$rounds==round-1 & df$id == pair_names$ID[1]]
+         # update percentage of negative interethnic contact 
+          df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[1]] =
+            df$perc_neg_interethnic[df$rounds==round-1 & df$id == pair_names$ID[1]]
+          # update percentage of positive interethnic contact
+          df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[1]] = 
+            df$perc_pos_interethnic[df$rounds==round-1 & df$id == pair_names$ID[1]]
+            
+       }
+        
+
+        #### agent 2 ####
+        # update frequency of interethnic contact column
+        if (round == 1){
+          df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[2]] =  0
+        } else {
+          df$frequency_interethnic_contact[df$rounds==round & df$id == pair_names$ID[2]] = 
+          df$frequency_interethnic_contact[df$rounds==round-1 & df$id == pair_names$ID[2]]
+        }
+        
+        # update frequency of negative interethnic contact column 
+        if (round == 1){
+          df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]] = 0
+          # update percentage of negative interethnic contact 
+          df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]] = 0
+          # update percentage of positive interethnic contact 
+          df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]] = 0
+          
+        # Update frequency of negative interethnic contact for round > 1
+       } else if (round > 1) {
+         df$frequency_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]] = 
+            df$frequency_neg_interethnic[df$rounds==round-1 & df$id == pair_names$ID[2]]
+         # update percentage of negative interethnic contact 
+          df$perc_neg_interethnic[df$rounds==round & df$id == pair_names$ID[2]] =
+            df$perc_neg_interethnic[df$rounds==round-1 & df$id == pair_names$ID[2]]
+          # update percentage of positive interethnic contact
+          df$perc_pos_interethnic[df$rounds==round & df$id == pair_names$ID[2]] = 
+            df$perc_pos_interethnic[df$rounds==round-1 & df$id == pair_names$ID[2]]
+       }
+        
+      }
+    }
+  }
+  return(df)
+}
+
+
+
+```
+ 
+
+Simulation function:
+simulation() 
+  Input: 
+    - Community size n 
+    - Amount of rounds
+    - Ethnic minority to majority ratio i.e. 0.20 = 20/100(community size) = 20 % = from minority 
+```{r}
+n = 100 # Remember to change line 457 when changing this number
+
+simulate_prejudice <- function(n, rounds, prop_minority){
+  # Create df 
+  df <- data.frame(id = rep(1:n, rounds), 
+                   rounds = rep(1:rounds, each = n),
+                   ethnicity = as.character(rep( c("minority", "majority"),
+                                                 n*c(prop_minority,1-prop_minority))),
+                   prop_minority = prop_minority, 
+                   col_other = sample(round(rnorm(1000, mean=0.5, sd=0.125), 1),n), 
+                   p_dilemma_action = NA,
+                   contact_valence = NA,
+                   frequency_neg_interethnic = 0,
+                   frequency_interethnic_contact = 0, 
+                   perc_neg_interethnic = 0,
+                   perc_pos_interethnic = 0)
+  
+  # Run Prisoner's Dilemma 
+    # Wherein the updaterule is used
+  df <- prisoner_dilemma(df, rounds)
+
+  return(df)
+}
+```
+
+
+Simulations of the Data: n= 100 
+```{r}
+n=100
+rounds = 150
+
+# Low diversity 0.05 
+low <- simulate_prejudice(n, 150, 0.05)
+#Give unique ID 
+low$id_2 <- rep(1:n, rounds)
+#Subset majority
+low_majority <- subset(low, low$ethnicity == "majority")
+write.csv(low, "low.csv")
+
+
+# Higher Low Diversity 0.25
+high_low <- simulate_prejudice(n, 150, 0.25)
+#Give unique ID 
+high_low$id_2 <- rep(n+1:n*2, rounds)
+#Subset majority
+high_low_majority <- subset(high_low, high_low$ethnicity == "majority")
+write.csv(high_low, "high_low.csv")
+
+# Medium 0.45
+medium1 <- simulate_prejudice(n, 150, 0.45)
+#Give unique ID 
+medium1$id_2 <- rep(n*2+1:n*3, rounds)
+# majroity
+medium_majority1 <- subset(medium1, medium1$ethnicity == "majority")
+write.csv(medium1, "medium1.csv")
+
+### 2 ####
+medium2 <- simulate_prejudice(n, 150, 0.45)
+#Give unique ID 
+medium2$id_2 <- rep(n*3+1:n*4, rounds)
+#Majority 
+medium_majority2 <- subset(medium2, medium2$ethnicity == "majority")
+write.csv(medium2, "medium2.csv")
+
+# Lower High 0.65
+low_high1 <- simulate_prejudice(n, 150, 0.65)
+#Give unique ID 
+low_high1$id_2 <- rep(n*4+1:n*5, rounds)
+#majority
+low_high_majority1 <- subset(low_high1, low_high1$ethnicity == "majority")
+write.csv(low_high1, "low_high1.csv")
+
+### 2 #### 
+low_high2 <- simulate_prejudice(n, 150, 0.65)
+#Give unique ID 
+low_high2$id_2 <- rep(n*5+1:n*6, rounds)
+#Majority
+low_high_majority2 <- subset(low_high2, low_high2$ethnicity == "majority")
+write.csv(low_high2, "low_high2.csv")
+
+### 3 ####
+low_high3 <- simulate_prejudice(n, 150, 0.65)
+#Give unique ID 
+low_high3$id_2 <- rep(n*6+1:n*7, rounds)
+#Majority
+low_high_majority3 <- subset(low_high3, low_high3$ethnicity == "majority")
+write.csv(low_high3, "low_high3.csv")
+
+# High 0.85 #
+high1 <- simulate_prejudice(n, 150, 0.85)
+#Give unique id 
+high1$id_2 <- rep(n*7+1:n*8, rounds)
+#majority
+high_majority1 <- subset(high1, high1$ethnicity == "majority")
+write.csv(high1, "high1.csv")
+
+### 2 ####
+high2 <- simulate_prejudice(n, 150, 0.85)
+#Give unique id 
+high2$id_2 <- rep(n*8+1:n*9, rounds)
+#majority
+high_majority2 <- subset(high2, high2$ethnicity == "majority")
+write.csv(high2, "high2.csv")
+
+### 3 #### 
+high3 <- simulate_prejudice(n, 150, 0.85)
+#Give unique id 
+high3$id_2 <- rep(n*9+1:n*10, rounds)
+#majority
+high_majority3 <- subset(high3, high3$ethnicity == "majority")
+write.csv(high3, "high3.csv")
+
+#### 4 ####
+high4 <- simulate_prejudice(n, 150, 0.85)
+#Give unique id 
+high4$id_2 <- rep(n*10+1:n*11, rounds)
+#majority
+high_majority4 <- subset(high4, high4$ethnicity == "majority")
+write.csv(high4, "high4.csv")
+
+### 5 ####
+high5 <- simulate_prejudice(n, 150, 0.85)
+#Give unique id 
+high5$id_2 <-rep(n*11+1:n*12, rounds)
+#majority
+high_majority5 <- subset(high5, high5$ethnicity == "majority")
+write.csv(high5, "high5.csv")
+
+### 6 ### 
+high6 <- simulate_prejudice(n, 150, 0.85)
+#Give unique id 
+high6$id_2 <- rep(n*12+1:n*13, rounds)
+#majority
+high_majority6 <- subset(high6, high6$ethnicity == "majority")
+write.csv(high6, "high6.csv")
+
+### Bind together 
+all_majority <- rbind(low_majority, high_low_majority, medium_majority1, medium_majority2, low_high_majority1, low_high_majority2, low_high_majority3, high_majority1, high_majority2, high_majority3, high_majority4, high_majority5, high_majority6)
+
+# Save dataframe as csv file 
+write.csv(all_majority, "all_majority.csv")
+
+all_majority <- read_csv("all_majority.csv")
+all_majority$X1 <- NULL
+
+```
+
+
+H1: Contact hypothesis: The more interethnic contact the less overall prejudice towards ethnic minorities. 
+Plot: Linear plot showing prejudice on y-axis and frequency of contact on x-axis (could divide into ID or add diversity level as group/colour)
+```{r}
+## Preprocesing ##
+# Make groupings of amount of interethnic contact 
+all_majority$interethnic_freq_level <- NA
+i=1
+rounds=150
+for (i in 1:length(all_majority$interethnic_freq_level)){
+  if (all_majority$frequency_interethnic_contact[i]/rounds> 0.66){
+    all_majority$interethnic_freq_level[i] <- "High"
+
+  } else if (all_majority$frequency_interethnic_contact[i]/rounds> 0.33 &
+             all_majority$frequency_interethnic_contact[i]/rounds<=0.66){
+    all_majority$interethnic_freq_level[i] <- "Medium"
+
+  } else if (all_majority$frequency_interethnic_contact[i]/rounds <=0.33){
+    all_majority$interethnic_freq_level[i] <- "Low"
+  }
+}
+
+# Add SD 
+mean_sd <- function(x, mult = 1) {  
+  x <- na.omit(x)
+  sd <- sd(x)
+  mean <- mean(x)
+  data.frame(y = mean, ymin = mean - sd, ymax = mean + sd)
+}
+
+## plot ##
+# Change the theme - just make it look pretty
+H1 <- ggplot(all_majority, aes(frequency_interethnic_contact, col_other)) +
+  geom_smooth(method="lm", colour= "#32CD32", se=FALSE) + 
+  stat_summary(fun.data = mean_sd, geom = "ribbon", alpha=0.40) +
+  coord_cartesian(xlim = c(0,150), ylim = c(0, 1)) +
+  labs(x="Frequency of Interethnic Contact", y="Propensity to Collaborate") + 
+  ggtitle("Propensity to Collaborate as Frequency\n of Interethnic Contact Increases") + 
+  theme(plot.title = element_text(size = 9), axis.title = element_text(size = 9))
+H1
+
+ggsave("H1.png")
+
+######## run Regression #############
+library(lmerTest)
+h1 <- lmer(col_other ~ frequency_interethnic_contact + (1|id_2), all_majority)
+summary(h1)$coefficients[2,1]
+summary(h1)
+```
+
+H1: Descriptive Statistics: 
+```{r}
+# Maybe check this as well with only values from the last round 
+H1_desc <- all_majority %>% group_by(interethnic_freq_level) %>% summarise(Mean_POC =mean(col_other), SD = sd(col_other), Minimum_POC =min(col_other), Maximum_POC = max(col_other))
+
+
+H1_desc <- rename(H1_desc, "Level of Interethnic contact"="interethnic_freq_level", "Mean POC"="Mean_POC", "Minimum POC" = "Minimum_POC", "Maximum POC" = "Maximum_POC")
+
+H1_desc <- H1_desc[c(2,3,1),]
+H1_desc$`Mean POC` <- round(H1_desc$`Mean POC`,3)
+H1_desc$SD <- round(H1_desc$SD,3)
+H1_desc
+
+# Save as png file
+png("H1_desc.png", height=100, width=500)
+p<-tableGrob(H1_desc)
+grid.arrange(p)
+dev.off()
+
+```
+
+
+perc_negative_levels function:
+Makes levels of negative interethnic contact from a column measuring percentage of negative interethnic contact.
+```{r}
+perc_negative_levels <- function(df){
+  df$perc_neg_levels <- NA 
+  
+  for (i in 1:length(df$perc_neg_interethnic)){
+    if(df$perc_neg_interethnic[i] <= 33){
+      df$perc_neg_levels[i] <- "Low"
+      
+    } else if (df$perc_neg_interethnic[i]>33 &
+               df$perc_neg_interethnic[i]<66){
+      df$perc_neg_levels[i] <- "Medium"
+      
+    } else {
+      df$perc_neg_levels[i] <- "High"
+    }
+  }
+  return(df)
+}
+  
+```
+
+
+H2: Negative interethnic contact has more adverse effects on prejudice towards ethnic minorities, in 
+communities with low levels of diversity compared to high levels of diversity. 
+Plot: 
+```{r}
+## Preprocessing ##
+# We are only interested in the effect of negative interethnic contact. Therefore, we subset to only get these observations. 
+negative_majority <- subset(all_majority, all_majority$contact_valence == "col_def" | all_majority$contact_valence=="def_def") 
+
+# Create column for levels of negative interethnic contact
+negative_majority <- perc_negative_levels(negative_majority)
+
+# Setting the class of the column created 
+negative_majority$perc_neg_levels <- as.factor(negative_majority$perc_neg_levels)
+negative_majority$perc_neg_levels <- factor(negative_majority$perc_neg_levels, levels = c("Low", "Medium", "High"))
+
+# Dataframe with means and sd 
+negative_means <- negative_majority %>% group_by(prop_minority, perc_neg_levels) %>% summarise(mean=mean(col_other), SD=sd(col_other))
+
+negative_means$prop_minority <- as.character(negative_means$prop_minority)
+negative_means$prop_minority <- as.factor(negative_means$prop_minority)
+
+H2 <- ggplot(negative_means, aes(perc_neg_levels, mean, colour=prop_minority, group = prop_minority)) + 
+  geom_line() +
+  geom_point() +
+  coord_cartesian(ylim = c(0, 1)) +
+  labs(y="Mean Propensity to Collaborate", x="Level of Negative Interethnic Contact", title = "Effect of Negative Contact in \nDifferent Levels of Diversity on\n Mean Propensity to Collaborate") +
+  scale_colour_discrete("Proportion of Minorities")
+         theme(plot.title = element_text(size = 9)) 
+H2
+
+ggsave("H2.png", width = 6, height = 8, dpi = 300)
+```
+
+H2: 
+Descriptive Statistics:
+```{r}
+# Calculate means and SD etc. 
+negative_means <- negative_majority %>% group_by(prop_minority, perc_neg_levels) %>% summarise(mean=mean(col_other), SD=sd(col_other), Minimum_POC =min(col_other), Maximum_POC = max(col_other))
+
+#Renaming columns
+H2_desc <- rename(negative_means, "Proportion of Minority"="prop_minority", "Levels of negative contact" = "perc_neg_levels", "Mean POC"="mean", "Minimum POC" = "Minimum_POC", "Maximum POC" = "Maximum_POC")
+
+#Rounding values
+H2_desc$`Mean POC` <- round(H2_desc$`Mean POC`,3)
+H2_desc$SD <- round(H2_desc$SD,3)
+H2_desc$`Minimum POC` <- round(H2_desc$`Minimum POC`, 3)
+H2_desc$`Maximum POC` <- round(H2_desc$`Maximum POC`, 3)
+
+H2_desc
+
+#Save as png file 
+png("H2_desc.png", height=450, width=650)
+p<-tableGrob(H2_desc)
+grid.arrange(p)
+dev.off()
+```
+
+
+Prejudice Level function: 
+```{r}
+prejudice_level <- function(df){
+  df$prejudice_level <- NA
+  for (i in 1:length(df$prejudice_level)){
+    if (df$col_other[i]>= 0 & df$col_other[i]<=0.20){
+      df$prejudice_level[i] <- "High"
+      
+    } else if (df$col_other[i]> 0.20 & df$col_other[i]<=0.40){
+      df$prejudice_level[i] <- "Lower High"
+      
+    } else if (df$col_other[i]>0.40 & df$col_other[i]<=0.60){
+      df$prejudice_level[i] <- "Medium"
+      
+    } else if (df$col_other[i] >0.60 & df$col_other[i] <=0.80) {
+      df$prejudice_level[i] <- "Higher Low"
+      
+    } else if (df$col_other[i] > 0.80 & df$col_other[i] <=1){
+      df$prejudice_level[i] <- "Low"
+    }
+  }
+return(df)
+}
+ 
+
+
+```
+
+H3: Polarisation: Increased ethnic diversity will lead to polarisation of attitudes i.e. some having 
+increasingly positive attitudes towards ethnic minorities and others having an increased level of 
+prejudice (Laurence et. Al 2016)
+
+Plot: Count of ID(people) on y-axis, level of diversity on x-axis and grouping by levels of prejudice 
+```{r}
+## Preprocessing ##
+# Subset all the last rounds for each simulation 
+last_majority <- subset(all_majority, all_majority$rounds==150)
+
+#Creating column with levels of prejudice based on col_other column
+last_majority <- prejudice_level(last_majority)
+
+# Counting number of agents 
+majority_count <- last_majority %>% count(prop_minority, prejudice_level)
+majority_count$prejudice_level <- as.factor(majority_count$prejudice_level)
+majority_count$prejudice_level <- factor(majority_count$prejudice_level, c("Low", "Higher Low", "Medium", "Lower High", "High"))
+
+## Plot ##
+H3<- ggplot(majority_count, aes(x = prop_minority, y = n, colour=prejudice_level, group=prejudice_level)) + geom_point() + geom_line() +
+  labs(x="Proportion of Miniroties", y="Number of Agents") + 
+  ggtitle("Number of People with Different \nLevels of Prejudice in Communities with\n Variying Degrees of Diversity(Last Round)") + 
+  scale_colour_discrete("Prejudice Level") +
+  theme(plot.title = element_text(size = 8), axis.title = element_text(size = 8), legend.title = element_text(size=8))
+
+H3
+
+#Save plot 
+ggsave("H3.png")
+
+### Including rounds to see development and method = lm to make it possible to see overall development ###
+all_majority <- prejudice_level(all_majority)
+
+all_H3 <- all_majority %>% count(prop_minority, prejudice_level, rounds) 
+all_H3$prejudice_level <- as.factor(all_H3$prejudice_level)
+all_H3$prejudice_level <- factor(all_H3$prejudice_level, c("Low", "Higher Low", "Medium", "Lower High", "High"))
+
+H3_2 <- ggplot(all_H3, aes(x = rounds, y = n, colour=prejudice_level)) +
+  geom_smooth(method = "lm", se=F) +
+  labs(x="Round in Prisoner's Dilemma", y="Number of Agents") +
+  ggtitle("Number of Agents with Different Levels of Prejudice\n in Communities with Variying Degrees of Diversity") +
+  scale_colour_discrete("Prejudice Level") +
+  theme(plot.title = element_text(size = 10), axis.title = element_text(size = 10), legend.title = element_text(size=10)) +
+  facet_wrap(.~prop_minority)
+
+H3_2
+
+#Save plot 
+ggsave("H3_2.png", width = 6, height = 8, dpi = 300)
+
+```
+
